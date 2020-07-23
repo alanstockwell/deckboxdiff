@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
+from copy import deepcopy
 
 import pandas as pd
 
 
 class CardInstance(object):
 
-    def __init__(self, edition, card_number, name, count):
+    def __init__(self, edition, card_number, name, card_type, rarity, count, condition, language):
         self.edition = edition
         self.card_number = card_number
         self.name = name
+        self.card_type = card_type
+        self.rarity = rarity
         self.count = count
+        self.condition = condition
+        self.language = language
 
     def __str__(self):
         return '{} x {} - {}, Card #{}'.format(
@@ -27,7 +32,11 @@ class CardInstance(object):
             edition=row.loc['Edition'],
             card_number=row.loc['Card Number'],
             name=row.loc['Name'],
+            card_type=row.loc['Type'],
+            rarity=row.loc['Rarity'],
             count=row.loc['Count'],
+            condition=row.loc['Condition'],
+            language=row.loc['Language'],
         )
 
     @property
@@ -35,12 +44,12 @@ class CardInstance(object):
         return self.edition, self.card_number, self.name
 
     def clone(self, count=None):
-        return CardInstance(
-            edition=self.edition,
-            card_number=self.card_number,
-            name=self.name,
-            count=self.count if count is None else count,
-        )
+        new_clone = deepcopy(self)
+
+        if count is not None:
+            new_clone.count = count
+
+        return new_clone
 
 
 class CardSet(object):
@@ -111,8 +120,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    reference_set = DeckboxExport(args.file_one).card_set
-    difference_set = DeckboxExport(args.file_two).card_set
+    reference_set = DeckboxExport(args.reference_file).card_set
+    difference_set = DeckboxExport(args.difference_file).card_set
 
     for difference in reference_set.diff(difference_set):
         print(difference)
