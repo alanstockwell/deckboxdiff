@@ -106,8 +106,8 @@ class DeckboxExport(object):
 if __name__ == '__main__':
     parser = ArgumentParser('Calculate the difference between two deckbox export files')
 
-    parser.add_argument('file_one', help='The reference file')
-    parser.add_argument('file_two', help='The file which is different to the reference file')
+    parser.add_argument('reference_file', help='The reference file')
+    parser.add_argument('difference_file', help='The file to calculate the deltas of relative to the reference file')
 
     args = parser.parse_args()
 
