@@ -67,7 +67,7 @@ class CardSet(object):
             other_match = other.match(card_instance)
 
             if other_match is None:
-                differences.append(card_instance.clone(count=0))
+                differences.append(card_instance.clone(count=0 - card_instance.count))
             elif not other_match.count == card_instance.count:
                 differences.append(card_instance.clone(other_match.count - card_instance.count))
 
