@@ -29,12 +29,13 @@ class CardInstance(object):
     def __str__(self):
         features = self.features
 
-        return '{} x {} - {}, Card #{}{}'.format(
+        return '{} x {} - {}, Card #{} - {}{}'.format(
             self.count,
             self.name,
             self.edition,
             self.card_number,
-            '' if len(features) == 0 else ' ({})'.format(', '.join(features)),
+            self.condition,
+            '' if len(features) == 0 else ', {}'.format(', '.join((_.title() for _ in features))),
         )
 
     @staticmethod
@@ -78,6 +79,12 @@ class CardInstance(object):
             self.condition,
             self.language,
             self.foil,
+            self.signed,
+            self.artist_proof,
+            self.altered_art,
+            self.misprint,
+            self.promo,
+            self.textless,
         )
 
     def clone(self, count=None):
