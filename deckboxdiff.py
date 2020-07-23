@@ -8,7 +8,8 @@ import pandas as pd
 
 class CardInstance(object):
 
-    def __init__(self, edition, card_number, name, card_type, rarity, count, condition, language):
+    def __init__(self, edition, card_number, name, card_type, rarity, count, condition, language,
+                 foil, signed, artist_proof, altered_art, misprint, promo, textless):
         self.edition = edition
         self.card_number = card_number
         self.name = name
@@ -17,13 +18,23 @@ class CardInstance(object):
         self.count = count
         self.condition = condition
         self.language = language
+        self.foil = foil
+        self.signed = signed
+        self.artist_proof = artist_proof
+        self.altered_art = altered_art
+        self.misprint = misprint
+        self.promo = promo
+        self.textless = textless
 
     def __str__(self):
-        return '{} x {} - {}, Card #{}'.format(
+        features = self.features
+
+        return '{} x {} - {}, Card #{}{}'.format(
             self.count,
             self.name,
             self.edition,
             self.card_number,
+            '' if len(features) == 0 else ' ({})'.format(', '.join(features)),
         )
 
     @staticmethod
@@ -37,11 +48,37 @@ class CardInstance(object):
             count=row.loc['Count'],
             condition=row.loc['Condition'],
             language=row.loc['Language'],
+            foil='' if pd.isna(row.loc['Foil']) else row.loc['Foil'],
+            signed='' if pd.isna(row.loc['Signed']) else row.loc['Signed'],
+            artist_proof='' if pd.isna(row.loc['Artist Proof']) else row.loc['Artist Proof'],
+            altered_art='' if pd.isna(row.loc['Altered Art']) else row.loc['Altered Art'],
+            misprint='' if pd.isna(row.loc['Misprint']) else row.loc['Misprint'],
+            promo='' if pd.isna(row.loc['Promo']) else row.loc['Promo'],
+            textless='' if pd.isna(row.loc['Textless']) else row.loc['Textless'],
         )
 
     @property
+    def features(self):
+        return list(filter(lambda x: not x == '', (
+            self.foil,
+            self.signed,
+            self.artist_proof,
+            self.altered_art,
+            self.misprint,
+            self.promo,
+            self.textless,
+        )))
+
+    @property
     def set_key(self):
-        return self.edition, self.card_number, self.name
+        return (
+            self.edition,
+            self.card_number,
+            self.name,
+            self.condition,
+            self.language,
+            self.foil,
+        )
 
     def clone(self, count=None):
         new_clone = deepcopy(self)
