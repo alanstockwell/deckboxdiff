@@ -139,6 +139,10 @@ class DeckboxExport(object):
     FILE_TYPE_CSV = 'csv'
     FILE_TYPE_XLSX = 'xlsx'
 
+    EXCEL_ENCODING_CLEANUPS = (
+        ('Ã©', 'é'),
+    )
+
     def __init__(self, file_path):
         self.file_path = file_path
         self.file_type = self.file_path.lower().split('.')[-1]
@@ -152,7 +156,11 @@ class DeckboxExport(object):
 
         self.card_set = CardSet()
 
-        for row in (self._data.loc[_] for _ in self._data.index):
+        for row in (self._data.loc[_].copy() for _ in self._data.index):
+            if self.file_type == DeckboxExport.FILE_TYPE_XLSX:
+                for replace_from, replace_to in DeckboxExport.EXCEL_ENCODING_CLEANUPS:
+                    row.loc['Name'] = row.loc['Name'].replace(replace_from, replace_to)
+
             self.card_set.add_card(CardInstance.from_deckbox_row(row))
 
 
