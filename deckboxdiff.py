@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from decimal import Decimal, InvalidOperation
+
 from argparse import ArgumentParser
 from copy import deepcopy
 
@@ -7,6 +9,8 @@ import pandas as pd
 
 
 class CardInstance(object):
+    _price = None
+    _my_price = None
 
     def __init__(self, edition, card_number, name, card_type, rarity, count, condition, language,
                  foil, signed, artist_proof, altered_art, misprint, promo, textless):
@@ -40,7 +44,7 @@ class CardInstance(object):
 
     @staticmethod
     def from_deckbox_row(row):
-        return CardInstance(
+        card_instance = CardInstance(
             edition=row.loc['Edition'],
             card_number=row.loc['Card Number'],
             name=row.loc['Name'],
@@ -57,6 +61,42 @@ class CardInstance(object):
             promo='' if pd.isna(row.loc['Promo']) else row.loc['Promo'],
             textless='' if pd.isna(row.loc['Textless']) else row.loc['Textless'],
         )
+
+        try:
+            card_instance.price = row.loc['Price']
+        except (KeyError, InvalidOperation):
+            pass
+
+        try:
+            card_instance.my_price = row.loc['My Price']
+        except (KeyError, InvalidOperation):
+            pass
+
+        return card_instance
+
+    @property
+    def price(self):
+        return self._price
+
+    @price.setter
+    def price(self, value):
+        self._price = None if value is None else Decimal(value)
+
+    @property
+    def my_price(self):
+        return self._my_price
+
+    @my_price.setter
+    def my_price(self, value):
+        self._my_price = None if value is None else Decimal(value)
+
+    @property
+    def total_price(self):
+        return None if self.price is None else self.count * self.price
+
+    @property
+    def total_my_price(self):
+        return None if self.my_price is None else self.count * self.my_price
 
     @property
     def features(self):
@@ -101,6 +141,14 @@ class CardSet(object):
     def __init__(self):
         self.cards = {}
 
+    @property
+    def total_price(self):
+        return sum((_.total_price for _ in self.cards.values() if _.total_price is not None))
+
+    @property
+    def total_my_price(self):
+        return sum((_.total_my_price for _ in self.cards.values() if _.total_my_price is not None))
+
     def add_card(self, card_instance):
         try:
             self.cards[card_instance.set_key].count += card_instance.count
@@ -143,14 +191,19 @@ class DeckboxExport(object):
         ('Ã©', 'é'),
     )
 
+    DATA_TYPES = {
+        'Price': str,
+        'My Price': str,
+    }
+
     def __init__(self, file_path):
         self.file_path = file_path
         self.file_type = self.file_path.lower().split('.')[-1]
 
         if self.file_type == DeckboxExport.FILE_TYPE_CSV:
-            self._data = pd.read_csv(self.file_path)
+            self._data = pd.read_csv(self.file_path, dtype=self.DATA_TYPES)
         elif self.file_type == DeckboxExport.FILE_TYPE_XLSX:
-            self._data = pd.read_excel(self.file_path)
+            self._data = pd.read_excel(self.file_path, dtype=self.DATA_TYPES)
         else:
             raise TypeError('Only CSV and XLSX files are supported')
 
@@ -169,6 +222,7 @@ if __name__ == '__main__':
 
     parser.add_argument('reference_file', help='The reference file')
     parser.add_argument('difference_file', help='The file to calculate the deltas of relative to the reference file')
+    parser.add_argument('--show-price', action='store_true', help='Show price difference between sets')
 
     args = parser.parse_args()
 
@@ -177,3 +231,9 @@ if __name__ == '__main__':
 
     for difference in reference_set.diff(difference_set):
         print(difference)
+
+    if args.show_price:
+        print('\nPrice difference: ${:,.2f} vs ${:,.2f}'.format(
+            reference_set.total_price,
+            difference_set.total_price,
+        ))
