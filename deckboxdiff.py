@@ -262,7 +262,7 @@ class DeckboxExport(object):
         if self.file_type == DeckboxExport.FILE_TYPE_CSV:
             self._data = pd.read_csv(self.file_path, dtype=self.DATA_TYPES)
         elif self.file_type == DeckboxExport.FILE_TYPE_XLSX:
-            self._data = pd.read_excel(self.file_path, dtype=self.DATA_TYPES)
+            self._data = pd.read_excel(self.file_path, dtype=self.DATA_TYPES, engine='openpyxl')
         else:
             raise TypeError('Only CSV and XLSX files are supported')
 
