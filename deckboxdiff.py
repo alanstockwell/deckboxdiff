@@ -31,15 +31,9 @@ class CardInstance(object):
         self.textless = textless
 
     def __str__(self):
-        features = self.features
-
-        return '{} x {} - {}, Card #{} - {}{}'.format(
+        return '{} x {}'.format(
             self.count,
-            self.name,
-            self.edition,
-            self.card_number,
-            self.condition,
-            '' if len(features) == 0 else ', {}'.format(', '.join((_.title() for _ in features))),
+            self.description,
         )
 
     @staticmethod
@@ -73,6 +67,18 @@ class CardInstance(object):
             pass
 
         return card_instance
+
+    @property
+    def description(self):
+        features = self.features
+
+        return '{} - {}, Card #{} - {}{}'.format(
+            self.name,
+            self.edition,
+            self.card_number,
+            self.condition,
+            '' if len(features) == 0 else ', {}'.format(', '.join((_.title() for _ in features))),
+        )
 
     @property
     def price(self):
@@ -141,6 +147,35 @@ class CardSet(object):
     def __init__(self):
         self.cards = {}
 
+    def __add__(self, other):
+        new_set = CardSet()
+
+        for card_instance in self.cards.values():
+            new_set.add_card(card_instance)
+
+        for card_instance in other.cards.values():
+            new_set.add_card(card_instance)
+
+        return new_set
+
+    def __eq__(self, other):
+        for card_instance in self.cards.values():
+            other_match = other.match(card_instance)
+
+            if other_match is None or not card_instance.count == other_match.count:
+                return False
+
+        for card_instance in other.cards.values():
+            self_match = self.match(card_instance)
+
+            if self_match is None or not card_instance.count == self_match.count:
+                return False
+
+        return True
+
+    def __len__(self):
+        return sum((_.count for _ in self.cards.values()))
+
     @property
     def total_price(self):
         return sum((_.total_price for _ in self.cards.values() if _.total_price is not None))
@@ -161,45 +196,50 @@ class CardSet(object):
         except KeyError:
             return None
 
-    def diff(self, other):
-        differences = []
-
+    def iter_diff(self, other):
         for card_instance in self.cards.values():
             other_match = other.match(card_instance)
 
             if other_match is None:
-                differences.append(card_instance.clone(count=0 - card_instance.count))
+                yield card_instance.clone(count=0 - card_instance.count)
             elif not other_match.count == card_instance.count:
-                differences.append(card_instance.clone(other_match.count - card_instance.count))
+                yield card_instance.clone(other_match.count - card_instance.count)
 
         for other_card_instance in other.cards.values():
             self_match = self.match(other_card_instance)
 
             if self_match is None:
-                differences.append(other_card_instance.clone())
+                yield other_card_instance.clone()
+
+    def diff_set(self, other):
+        differences = list(self.iter_diff(other))
 
         differences.sort(key=lambda x: x.set_key)
 
-        return differences
+        new_set = CardSet()
+
+        for card_instance in differences:
+            new_set.add_card(card_instance)
+
+        return new_set
 
     def diff_price(self, other):
-        return sum((_.total_price for _ in self.diff(other) if _.total_price is not None))
+        return self.diff_set(other).total_adjusted_price(other)
 
-    def get_adjusted_prices(self, other):
-        price = Decimal(0)
+    def adjust_price(self, other_card_instance):
+        self_match = self.match(other_card_instance)
 
-        for card_instance in self.cards.values():
-            other_match = other.match(card_instance)
+        if self_match is not None and self_match.price is not None:
+            return other_card_instance.count * self_match.price
+        else:
+            raise ValueError(
+                'Cannot adjust price for: {}'.format(
+                    other_card_instance.description,
+                ),
+            )
 
-            if other_match is not None and other_match.price is not None:
-                price += card_instance.count * other_match.price
-            else:
-                raise ValueError(
-                    'Cannot accurately determine pricing; '
-                    'Difference set must be a superset of reference set',
-                )
-
-        return price
+    def total_adjusted_price(self, other):
+        return sum((other.adjust_price(_) for _ in self.cards.values()))
 
 
 class DeckboxExport(object):
@@ -241,24 +281,28 @@ if __name__ == '__main__':
 
     parser.add_argument('reference_file', help='The reference file')
     parser.add_argument('difference_file', help='The file to calculate the deltas of relative to the reference file')
-    parser.add_argument('--show-price', action='store_true', help='Show price difference between sets')
+    parser.add_argument('-p', '--show-price', action='store_true', help='Show price difference between sets')
 
     args = parser.parse_args()
 
     reference_set = DeckboxExport(args.reference_file).card_set
     difference_set = DeckboxExport(args.difference_file).card_set
 
-    for difference in reference_set.diff(difference_set):
+    for difference in reference_set.diff_set(difference_set).cards.values():
         print(difference)
 
-    if args.show_price:
-        print('\nReference set price: ${:,.2f} (${:,.2f} adjusted)'.format(
-            reference_set.total_price,
-            reference_set.get_adjusted_prices(difference_set),
-        ))
-        print('Difference set price: ${:,.2f}'.format(
-            difference_set.total_price,
-        ))
-        print('Adjusted price delta: ${:,.2f}'.format(
-            reference_set.diff_price(difference_set),
-        ))
+    try:
+        if args.show_price:
+            print('\nReference set price: ${:,.2f} (${:,.2f} adjusted)'.format(
+                reference_set.total_price,
+                reference_set.total_adjusted_price(difference_set),
+            ))
+            print('Difference set price: ${:,.2f}'.format(
+                difference_set.total_price,
+            ))
+            print('Adjusted price delta: ${:,.2f}'.format(
+                reference_set.diff_price(difference_set),
+            ))
+    except ValueError as e:
+        print('\nCannot show pricing due to error below:')
+        print('  {}'.format(e))
