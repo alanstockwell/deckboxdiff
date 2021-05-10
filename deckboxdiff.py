@@ -193,10 +193,11 @@ class CardSet(object):
 
             if other_match is not None and other_match.price is not None:
                 price += card_instance.count * other_match.price
-            elif card_instance.price is not None:
-                price += card_instance.total_price
             else:
-                raise ValueError('Cannot accurately determine pricing')
+                raise ValueError(
+                    'Cannot accurately determine pricing; '
+                    'Difference set must be a superset of reference set',
+                )
 
         return price
 
@@ -251,12 +252,11 @@ if __name__ == '__main__':
         print(difference)
 
     if args.show_price:
-        print('\nRaw prices: ${:,.2f} vs ${:,.2f}'.format(
+        print('\nReference set price: ${:,.2f} (${:,.2f} adjusted)'.format(
             reference_set.total_price,
-            difference_set.total_price,
-        ))
-        print('Adjusted prices: ${:,.2f} vs ${:,.2f}'.format(
             reference_set.get_adjusted_prices(difference_set),
+        ))
+        print('Difference set price: ${:,.2f}'.format(
             difference_set.total_price,
         ))
         print('Adjusted price delta: ${:,.2f}'.format(
