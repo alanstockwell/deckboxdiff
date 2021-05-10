@@ -63,12 +63,12 @@ class CardInstance(object):
         )
 
         try:
-            card_instance.price = row.loc['Price']
+            card_instance.price = row.loc['Price'].lstrip('$')
         except (KeyError, InvalidOperation):
             pass
 
         try:
-            card_instance.my_price = row.loc['My Price']
+            card_instance.my_price = row.loc['My Price'].lstrip('$')
         except (KeyError, InvalidOperation):
             pass
 
@@ -182,6 +182,24 @@ class CardSet(object):
 
         return differences
 
+    def diff_price(self, other):
+        return sum((_.total_price for _ in self.diff(other) if _.total_price is not None))
+
+    def get_adjusted_prices(self, other):
+        price = Decimal(0)
+
+        for card_instance in self.cards.values():
+            other_match = other.match(card_instance)
+
+            if other_match is not None and other_match.price is not None:
+                price += card_instance.count * other_match.price
+            elif card_instance.price is not None:
+                price += card_instance.total_price
+            else:
+                raise ValueError('Cannot accurately determine pricing')
+
+        return price
+
 
 class DeckboxExport(object):
     FILE_TYPE_CSV = 'csv'
@@ -233,7 +251,14 @@ if __name__ == '__main__':
         print(difference)
 
     if args.show_price:
-        print('\nPrice difference: ${:,.2f} vs ${:,.2f}'.format(
+        print('\nRaw prices: ${:,.2f} vs ${:,.2f}'.format(
             reference_set.total_price,
             difference_set.total_price,
+        ))
+        print('Adjusted prices: ${:,.2f} vs ${:,.2f}'.format(
+            reference_set.get_adjusted_prices(difference_set),
+            difference_set.total_price,
+        ))
+        print('Adjusted price delta: ${:,.2f}'.format(
+            reference_set.diff_price(difference_set),
         ))
