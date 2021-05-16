@@ -8,12 +8,23 @@ from copy import deepcopy
 import pandas as pd
 
 
+CONDITION_PRICE_MULTIPLIERS = {
+    '': Decimal('1.0'),
+    'Mint': Decimal('1.0'),
+    'Near Mint': Decimal('1.0'),
+    'Good (Lightly Played)': Decimal('0.8'),
+    'Played': Decimal('0.7'),
+    'Heavily Played': Decimal('0.5'),
+    'Poor': Decimal('0.25'),
+}
+
+
 class CardInstance(object):
     _price = None
     _my_price = None
 
     def __init__(self, edition, card_number, name, card_type, rarity, count, condition, language,
-                 foil, signed, artist_proof, altered_art, misprint, promo, textless):
+                 foil, signed, artist_proof, altered_art, misprint, promo, textless, image_url):
         self.edition = edition
         self.card_number = card_number
         self.name = name
@@ -29,6 +40,7 @@ class CardInstance(object):
         self.misprint = misprint
         self.promo = promo
         self.textless = textless
+        self.image_url = image_url
 
     def __str__(self):
         return '{} x {}'.format(
@@ -45,7 +57,7 @@ class CardInstance(object):
             card_type=row.loc['Type'],
             rarity=row.loc['Rarity'],
             count=row.loc['Count'],
-            condition=row.loc['Condition'],
+            condition='' if pd.isna(row.loc['Condition']) else row.loc['Condition'],
             language=row.loc['Language'],
             foil='' if pd.isna(row.loc['Foil']) else row.loc['Foil'],
             signed='' if pd.isna(row.loc['Signed']) else row.loc['Signed'],
@@ -54,6 +66,7 @@ class CardInstance(object):
             misprint='' if pd.isna(row.loc['Misprint']) else row.loc['Misprint'],
             promo='' if pd.isna(row.loc['Promo']) else row.loc['Promo'],
             textless='' if pd.isna(row.loc['Textless']) else row.loc['Textless'],
+            image_url=row.loc['Image URL'],
         )
 
         try:
@@ -89,6 +102,10 @@ class CardInstance(object):
         self._price = None if value is None else Decimal(value)
 
     @property
+    def condition_adjusted_price(self):
+        return None if self._price is None else self._price * CONDITION_PRICE_MULTIPLIERS[self.condition]
+
+    @property
     def my_price(self):
         return self._my_price
 
@@ -98,7 +115,11 @@ class CardInstance(object):
 
     @property
     def total_price(self):
-        return None if self.price is None else self.count * self.price
+        return None if self._price is None else self.price * self.count
+
+    @property
+    def total_condition_adjusted_price(self):
+        return None if self._price is None else self.condition_adjusted_price * self.count
 
     @property
     def total_my_price(self):
@@ -133,6 +154,23 @@ class CardInstance(object):
             self.textless,
         )
 
+    @property
+    def price_key(self):
+        return (
+            self.edition,
+            self.card_number,
+            self.name,
+            self.language,
+            self.foil,
+            self.signed,
+            self.artist_proof,
+            self.altered_art,
+            self.misprint,
+            self.promo,
+            self.textless,
+            self.image_url,
+        )
+
     def clone(self, count=None):
         new_clone = deepcopy(self)
 
@@ -146,6 +184,7 @@ class CardSet(object):
 
     def __init__(self):
         self.cards = {}
+        self.prices = {}
 
     def __add__(self, other):
         new_set = CardSet()
@@ -181,6 +220,10 @@ class CardSet(object):
         return sum((_.total_price for _ in self.cards.values() if _.total_price is not None))
 
     @property
+    def total_condition_adjusted_price(self):
+        return sum((_.total_condition_adjusted_price for _ in self.cards.values() if _.total_price is not None))
+
+    @property
     def total_my_price(self):
         return sum((_.total_my_price for _ in self.cards.values() if _.total_my_price is not None))
 
@@ -189,6 +232,18 @@ class CardSet(object):
             self.cards[card_instance.set_key].count += card_instance.count
         except KeyError:
             self.cards[card_instance.set_key] = card_instance
+
+        try:
+            existing_price = self.prices[card_instance.price_key]
+
+            if not existing_price == card_instance.price:
+                raise ValueError('Price does not match for {}: {} vs {}'.format(
+                    card_instance,
+                    existing_price,
+                    card_instance.price,
+                ))
+        except KeyError:
+            self.prices[card_instance.price_key] = card_instance.price
 
     def match(self, card_instance):
         try:
@@ -299,6 +354,9 @@ if __name__ == '__main__':
             ))
             print('Difference set price: ${:,.2f}'.format(
                 difference_set.total_price,
+            ))
+            print('Difference set condition adjusted price: ${:,.2f}'.format(
+                difference_set.total_condition_adjusted_price,
             ))
             print('Adjusted price delta: ${:,.2f}'.format(
                 reference_set.diff_price(difference_set),
