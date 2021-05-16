@@ -9,12 +9,12 @@ import pandas as pd
 
 
 CONDITION_PRICE_MULTIPLIERS = {
-    '': Decimal('1.0'),
-    'Mint': Decimal('1.0'),
-    'Near Mint': Decimal('1.0'),
-    'Good (Lightly Played)': Decimal('0.8'),
-    'Played': Decimal('0.7'),
-    'Heavily Played': Decimal('0.5'),
+    '': Decimal('1.00'),  # Assume Mint/Near Mint
+    'Mint': Decimal('1.00'),
+    'Near Mint': Decimal('1.00'),
+    'Good (Lightly Played)': Decimal('0.85'),
+    'Played': Decimal('0.70'),
+    'Heavily Played': Decimal('0.50'),
     'Poor': Decimal('0.25'),
 }
 
@@ -139,19 +139,8 @@ class CardInstance(object):
 
     @property
     def set_key(self):
-        return (
-            self.edition,
-            self.card_number,
-            self.name,
+        return self.price_key + (
             self.condition,
-            self.language,
-            self.foil,
-            self.signed,
-            self.artist_proof,
-            self.altered_art,
-            self.misprint,
-            self.promo,
-            self.textless,
         )
 
     @property
@@ -168,8 +157,12 @@ class CardInstance(object):
             self.misprint,
             self.promo,
             self.textless,
-            self.image_url,
+            self.image_file_name,  # Un-sets sometimes have different images for the same edition/card_number
         )
+
+    @property
+    def image_file_name(self):
+        return None if self.image_url is None else self.image_url.split('/')[-1]
 
     def clone(self, count=None):
         new_clone = deepcopy(self)
@@ -282,11 +275,9 @@ class CardSet(object):
         return self.diff_set(other).total_adjusted_price(other)
 
     def adjust_price(self, other_card_instance):
-        self_match = self.match(other_card_instance)
-
-        if self_match is not None and self_match.price is not None:
-            return other_card_instance.count * self_match.price
-        else:
+        try:
+            return other_card_instance.count * self.prices[other_card_instance.price_key]
+        except KeyError:
             raise ValueError(
                 'Cannot adjust price for: {}'.format(
                     other_card_instance.description,
