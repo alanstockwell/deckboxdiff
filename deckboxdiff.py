@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from decimal import Decimal, InvalidOperation
+from collections import defaultdict
 
 from argparse import ArgumentParser
 from copy import deepcopy
@@ -48,6 +49,9 @@ class Card(object):
             self.description,
         )
 
+    def __repr__(self):
+        return '<{}>'.format(self)
+
     @staticmethod
     def from_deckbox_row(row):
         card = Card(
@@ -85,7 +89,7 @@ class Card(object):
     def description(self):
         features = self.features
 
-        return '{} - {}, Card #{} - {}{}'.format(
+        return '{} ({}, #{:03d}) | {}{}'.format(
             self.name,
             self.edition,
             self.card_number,
@@ -177,7 +181,7 @@ class CardSet(object):
 
     def __init__(self):
         self.cards = {}
-        self.prices = {}
+        self.types = defaultdict(list)
 
     def __add__(self, other_card_set):
         new_set = CardSet()
@@ -190,17 +194,18 @@ class CardSet(object):
 
         return new_set
 
-    def __eq__(self, other_card_set):
-        for card in self.cards.values():
-            other_card = other_card_set.match(card)
+    def __contains__(self, card):
+        return self.contains(card)
 
-            if other_card is None or not card.count == other_card.count:
+    def __eq__(self, other_card_set):
+        for self_card in self.cards.values():
+            if self_card not in other_card_set:
                 return False
 
-        for card in other_card_set.cards.values():
-            self_match = self.match(card)
+        for other_card in other_card_set.cards.values():
+            self_card = self.match(other_card)
 
-            if self_match is None or not card.count == self_match.count:
+            if self_card is None or not other_card.count == self_card.count:
                 return False
 
         return True
@@ -226,17 +231,15 @@ class CardSet(object):
         except KeyError:
             self.cards[card.identity] = card
 
-        try:
-            existing_price = self.prices[card.type]
+        self.types[card.type].append(card)
 
-            if not existing_price == card.price:
-                raise ValueError('Price does not match for {}: {} vs {}'.format(
-                    card,
-                    existing_price,
-                    card.price,
-                ))
-        except KeyError:
-            self.prices[card.type] = card.price
+    def contains(self, other_card):
+        self_card = self.match(other_card)
+
+        return self_card is not None and self_card.count == other_card.count
+
+    def contains_type(self, card):
+        return card.type in self.types
 
     def match(self, card):
         try:
@@ -272,20 +275,29 @@ class CardSet(object):
         return new_set
 
     def diff_price(self, other_card_set):
-        return self.diff_set(other_card_set).total_adjusted_price(other_card_set)
+        return self.diff_set(other_card_set).total_applied_price(other_card_set)
 
-    def adjust_price(self, other_card):
+    def apply_card_pricing(self, other_card, condition_adjusted=False):
         try:
-            return other_card.count * self.prices[other_card.type]
-        except KeyError:
+            result = other_card.count * self.types[other_card.type][0].price
+
+            if condition_adjusted:
+                return result * CONDITION_PRICE_MULTIPLIERS[other_card.condition]
+            else:
+                return result
+        except (KeyError, IndexError):
             raise ValueError(
                 'Cannot adjust price for: {}'.format(
                     other_card.description,
                 ),
             )
 
-    def total_adjusted_price(self, other_card_set):
-        return sum((other_card_set.adjust_price(_) for _ in self.cards.values()))
+    def total_applied_price(self, other_card_set, condition_adjusted=False):
+        return sum((
+            other_card_set.apply_card_pricing(_, condition_adjusted=condition_adjusted)
+            for _ in
+            self.cards.values()
+        ))
 
 
 class DeckboxExport(object):
@@ -325,33 +337,52 @@ class DeckboxExport(object):
 if __name__ == '__main__':
     parser = ArgumentParser('Calculate the difference between two deckbox export files')
 
-    parser.add_argument('reference_file', help='The reference file')
-    parser.add_argument('difference_file', help='The file to calculate the deltas of relative to the reference file')
+    parser.add_argument(
+        'earlier_file',
+        help='The earlier file used for reference',
+    )
+    parser.add_argument(
+        'later_file',
+        help='The later file to calculate the changes in relative to the earlier file '
+             '(Also used to calculate the adjusted price of the earlier set)',
+    )
     parser.add_argument('-p', '--show-price', action='store_true', help='Show price difference between sets')
 
     args = parser.parse_args()
 
-    reference_set = DeckboxExport(args.reference_file).card_set
-    difference_set = DeckboxExport(args.difference_file).card_set
+    earlier_set = DeckboxExport(args.earlier_file).card_set
+    later_set = DeckboxExport(args.later_file).card_set
+    diff_set = earlier_set.diff_set(later_set)
 
-    for difference in reference_set.diff_set(difference_set).cards.values():
+    for difference in diff_set.cards.values():
         print(difference)
 
     try:
         if args.show_price:
-            print('\nReference set price: ${:,.2f} (${:,.2f} adjusted)'.format(
-                reference_set.total_price,
-                reference_set.total_adjusted_price(difference_set),
-            ))
-            print('Difference set price: ${:,.2f}'.format(
-                difference_set.total_price,
-            ))
-            print('Difference set condition adjusted price: ${:,.2f}'.format(
-                difference_set.total_condition_adjusted_price,
-            ))
-            print('Adjusted price delta: ${:,.2f}'.format(
-                reference_set.diff_price(difference_set),
-            ))
+            print(
+                '\n'
+                'Earlier set price:\n'
+                '  ${:,.2f} M/NM\n'
+                '  ${:,.2f} M/NM (updated)\n'
+                '  ${:,.2f} (updated and condition adjusted)'.format(
+                    earlier_set.total_price,
+                    earlier_set.total_applied_price(later_set),
+                    earlier_set.total_applied_price(later_set, condition_adjusted=True),
+                ))
+            print(
+                'Later set price:\n'
+                '  ${:,.2f} M/NM\n'
+                '  ${:,.2f} (condition adjusted)'.format(
+                    later_set.total_price,
+                    later_set.total_condition_adjusted_price,
+                ))
+            print(
+                'Adjusted price delta:\n'
+                '  ${:,.2f} M/NM\n'
+                '  ${:,.2f} (condition adjusted)'.format(
+                    diff_set.total_applied_price(later_set),
+                    diff_set.total_applied_price(later_set, condition_adjusted=True),
+                ))
     except ValueError as e:
         print('\nCannot show pricing due to error below:')
         print('  {}'.format(e))
