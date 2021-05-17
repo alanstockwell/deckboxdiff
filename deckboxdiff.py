@@ -19,7 +19,7 @@ CONDITION_PRICE_MULTIPLIERS = {
 }
 
 
-class CardInstance(object):
+class Card(object):
     _price = None
     _my_price = None
 
@@ -50,7 +50,7 @@ class CardInstance(object):
 
     @staticmethod
     def from_deckbox_row(row):
-        card_instance = CardInstance(
+        card = Card(
             edition=row.loc['Edition'],
             card_number=row.loc['Card Number'],
             name=row.loc['Name'],
@@ -70,16 +70,16 @@ class CardInstance(object):
         )
 
         try:
-            card_instance.price = row.loc['Price'].lstrip('$')
+            card.price = row.loc['Price'].lstrip('$')
         except (KeyError, InvalidOperation):
             pass
 
         try:
-            card_instance.my_price = row.loc['My Price'].lstrip('$')
+            card.my_price = row.loc['My Price'].lstrip('$')
         except (KeyError, InvalidOperation):
             pass
 
-        return card_instance
+        return card
 
     @property
     def description(self):
@@ -138,13 +138,13 @@ class CardInstance(object):
         )))
 
     @property
-    def set_key(self):
-        return self.price_key + (
+    def identity(self):
+        return self.type + (
             self.condition,
         )
 
     @property
-    def price_key(self):
+    def type(self):
         return (
             self.edition,
             self.card_number,
@@ -179,28 +179,28 @@ class CardSet(object):
         self.cards = {}
         self.prices = {}
 
-    def __add__(self, other):
+    def __add__(self, other_card_set):
         new_set = CardSet()
 
-        for card_instance in self.cards.values():
-            new_set.add_card(card_instance)
+        for card in self.cards.values():
+            new_set.add_card(card)
 
-        for card_instance in other.cards.values():
-            new_set.add_card(card_instance)
+        for card in other_card_set.cards.values():
+            new_set.add_card(card)
 
         return new_set
 
-    def __eq__(self, other):
-        for card_instance in self.cards.values():
-            other_match = other.match(card_instance)
+    def __eq__(self, other_card_set):
+        for card in self.cards.values():
+            other_card = other_card_set.match(card)
 
-            if other_match is None or not card_instance.count == other_match.count:
+            if other_card is None or not card.count == other_card.count:
                 return False
 
-        for card_instance in other.cards.values():
-            self_match = self.match(card_instance)
+        for card in other_card_set.cards.values():
+            self_match = self.match(card)
 
-            if self_match is None or not card_instance.count == self_match.count:
+            if self_match is None or not card.count == self_match.count:
                 return False
 
         return True
@@ -220,72 +220,72 @@ class CardSet(object):
     def total_my_price(self):
         return sum((_.total_my_price for _ in self.cards.values() if _.total_my_price is not None))
 
-    def add_card(self, card_instance):
+    def add_card(self, card):
         try:
-            self.cards[card_instance.set_key].count += card_instance.count
+            self.cards[card.identity].count += card.count
         except KeyError:
-            self.cards[card_instance.set_key] = card_instance
+            self.cards[card.identity] = card
 
         try:
-            existing_price = self.prices[card_instance.price_key]
+            existing_price = self.prices[card.type]
 
-            if not existing_price == card_instance.price:
+            if not existing_price == card.price:
                 raise ValueError('Price does not match for {}: {} vs {}'.format(
-                    card_instance,
+                    card,
                     existing_price,
-                    card_instance.price,
+                    card.price,
                 ))
         except KeyError:
-            self.prices[card_instance.price_key] = card_instance.price
+            self.prices[card.type] = card.price
 
-    def match(self, card_instance):
+    def match(self, card):
         try:
-            return self.cards[card_instance.set_key]
+            return self.cards[card.identity]
         except KeyError:
             return None
 
-    def iter_diff(self, other):
-        for card_instance in self.cards.values():
-            other_match = other.match(card_instance)
+    def iter_diff(self, other_card_set):
+        for card in self.cards.values():
+            other_card = other_card_set.match(card)
 
-            if other_match is None:
-                yield card_instance.clone(count=0 - card_instance.count)
-            elif not other_match.count == card_instance.count:
-                yield card_instance.clone(other_match.count - card_instance.count)
+            if other_card is None:
+                yield card.clone(count=0 - card.count)
+            elif not other_card.count == card.count:
+                yield card.clone(other_card.count - card.count)
 
-        for other_card_instance in other.cards.values():
-            self_match = self.match(other_card_instance)
+        for other_card in other_card_set.cards.values():
+            self_match = self.match(other_card)
 
             if self_match is None:
-                yield other_card_instance.clone()
+                yield other_card.clone()
 
-    def diff_set(self, other):
-        differences = list(self.iter_diff(other))
+    def diff_set(self, other_card_set):
+        differences = list(self.iter_diff(other_card_set))
 
-        differences.sort(key=lambda x: x.set_key)
+        differences.sort(key=lambda x: x.identity)
 
         new_set = CardSet()
 
-        for card_instance in differences:
-            new_set.add_card(card_instance)
+        for card in differences:
+            new_set.add_card(card)
 
         return new_set
 
-    def diff_price(self, other):
-        return self.diff_set(other).total_adjusted_price(other)
+    def diff_price(self, other_card_set):
+        return self.diff_set(other_card_set).total_adjusted_price(other_card_set)
 
-    def adjust_price(self, other_card_instance):
+    def adjust_price(self, other_card):
         try:
-            return other_card_instance.count * self.prices[other_card_instance.price_key]
+            return other_card.count * self.prices[other_card.type]
         except KeyError:
             raise ValueError(
                 'Cannot adjust price for: {}'.format(
-                    other_card_instance.description,
+                    other_card.description,
                 ),
             )
 
-    def total_adjusted_price(self, other):
-        return sum((other.adjust_price(_) for _ in self.cards.values()))
+    def total_adjusted_price(self, other_card_set):
+        return sum((other_card_set.adjust_price(_) for _ in self.cards.values()))
 
 
 class DeckboxExport(object):
@@ -319,7 +319,7 @@ class DeckboxExport(object):
                 for replace_from, replace_to in DeckboxExport.EXCEL_ENCODING_CLEANUPS:
                     row.loc['Name'] = row.loc['Name'].replace(replace_from, replace_to)
 
-            self.card_set.add_card(CardInstance.from_deckbox_row(row))
+            self.card_set.add_card(Card.from_deckbox_row(row))
 
 
 if __name__ == '__main__':
