@@ -24,12 +24,13 @@ class Card(object):
     _price = None
     _my_price = None
 
-    def __init__(self, edition, card_number, name, card_type, rarity, count, condition, language,
+    def __init__(self, edition, card_number, name, card_type, cost, rarity, count, condition, language,
                  foil, signed, artist_proof, altered_art, misprint, promo, textless, image_url):
         self.edition = edition
         self.card_number = card_number
         self.name = name
         self.card_type = card_type
+        self.cost = cost
         self.rarity = rarity
         self.count = count
         self.condition = condition
@@ -59,6 +60,7 @@ class Card(object):
             card_number=row.loc['Card Number'],
             name=row.loc['Name'],
             card_type=row.loc['Type'],
+            cost=row.loc['Cost'],
             rarity=row.loc['Rarity'],
             count=row.loc['Count'],
             condition='' if pd.isna(row.loc['Condition']) else row.loc['Condition'],
