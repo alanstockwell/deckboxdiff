@@ -313,6 +313,7 @@ class DeckboxExport(object):
     DATA_TYPES = {
         'Price': str,
         'My Price': str,
+        'Cost': str,
     }
 
     def __init__(self, file_path):
