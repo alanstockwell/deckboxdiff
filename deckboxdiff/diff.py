@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
+from dateutil.parser import parse as parse_datetime
 
 from argparse import ArgumentParser
 from copy import deepcopy
@@ -25,7 +26,7 @@ class Card(object):
     _my_price = None
 
     def __init__(self, edition, card_number, name, card_type, cost, rarity, count, condition, language,
-                 foil, signed, artist_proof, altered_art, misprint, promo, textless, image_url):
+                 foil, signed, artist_proof, altered_art, misprint, promo, textless, image_url, last_updated):
         self.edition = edition
         self.card_number = card_number
         self.name = name
@@ -43,6 +44,13 @@ class Card(object):
         self.promo = promo
         self.textless = textless
         self.image_url = image_url
+
+        if isinstance(last_updated, str):
+            self.last_updated = parse_datetime(last_updated)
+        elif isinstance(last_updated, datetime):
+            self.last_updated = last_updated
+        else:
+            raise ValueError('Invalid type for last_updated: {}'.format(type(last_updated)))
 
     def __str__(self):
         return '{} x {}'.format(
@@ -73,6 +81,7 @@ class Card(object):
             promo='' if pd.isna(row.loc['Promo']) else row.loc['Promo'],
             textless='' if pd.isna(row.loc['Textless']) else row.loc['Textless'],
             image_url=row.loc['Image URL'],
+            last_updated=row.loc['Last Updated'],
         )
 
         try:
@@ -335,6 +344,14 @@ class DeckboxExport(object):
                     row.loc['Name'] = row.loc['Name'].replace(replace_from, replace_to)
 
             self.card_set.add_card(Card.from_deckbox_row(row))
+
+    @property
+    def least_recent_update(self):
+        return min((_.last_updated for _ in self.card_set.cards.values()))
+
+    @property
+    def most_recent_update(self):
+        return max((_.last_updated for _ in self.card_set.cards.values()))
 
 
 if __name__ == '__main__':
