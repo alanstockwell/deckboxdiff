@@ -325,6 +325,9 @@ class DeckboxExport(object):
         'Cost': str,
     }
 
+    least_recent_update = None
+    most_recent_update = None
+
     def __init__(self, file_path):
         self.file_path = file_path
         self.file_type = self.file_path.lower().split('.')[-1]
@@ -343,15 +346,21 @@ class DeckboxExport(object):
                 for replace_from, replace_to in DeckboxExport.EXCEL_ENCODING_CLEANUPS:
                     row.loc['Name'] = row.loc['Name'].replace(replace_from, replace_to)
 
-            self.card_set.add_card(Card.from_deckbox_row(row))
+            card = Card.from_deckbox_row(row)
 
-    @property
-    def least_recent_update(self):
-        return min((_.last_updated for _ in self.card_set.cards.values()))
+            if card.last_updated is not None:
+                if self.least_recent_update is None:
+                    self.least_recent_update = card.last_updated
+                else:
+                    self.least_recent_update = min(self.least_recent_update, card.last_updated)
 
-    @property
-    def most_recent_update(self):
-        return max((_.last_updated for _ in self.card_set.cards.values()))
+            if card.last_updated is not None:
+                if self.most_recent_update is None:
+                    self.most_recent_update = card.last_updated
+                else:
+                    self.most_recent_update = max(self.most_recent_update, card.last_updated)
+
+            self.card_set.add_card(card)
 
 
 if __name__ == '__main__':

@@ -5,7 +5,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='deckboxdiff',
-    version='0.1.4',
+    version='0.1.5',
     author='Alan Stockwell',
     author_email='alan.stockwell@gmail.com',
     description='Helper classes and functions for deriving the difference between two deckbox exports',
