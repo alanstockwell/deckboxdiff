@@ -85,12 +85,12 @@ class Card(object):
         )
 
         try:
-            card.price = row.loc['Price'].lstrip('$')
+            card.price = None if pd.isna(row.loc['Price']) else row.loc['Price'].lstrip('$')
         except (KeyError, InvalidOperation):
             pass
 
         try:
-            card.my_price = row.loc['My Price'].lstrip('$')
+            card.my_price = None if pd.isna(row.loc['My Price']) else row.loc['My Price'].lstrip('$')
         except (KeyError, InvalidOperation):
             pass
 
