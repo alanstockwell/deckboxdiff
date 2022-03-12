@@ -179,6 +179,26 @@ class Card(object):
     def image_file_name(self):
         return None if self.image_url is None else self.image_url.split('/')[-1]
 
+    @property
+    def is_foil(self):
+        return bool(self.foil.strip())
+
+    @property
+    def is_signed(self):
+        return bool(self.signed.strip())
+
+    @property
+    def is_artist_proof(self):
+        return bool(self.artist_proof.strip())
+
+    @property
+    def is_altered_art(self):
+        return bool(self.altered_art.strip())
+
+    @property
+    def is_misprint(self):
+        return bool(self.misprint.strip())
+
     def clone(self, count=None):
         new_clone = deepcopy(self)
 
