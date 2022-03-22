@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os
+
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -100,12 +102,18 @@ class Card(object):
     def description(self):
         features = self.features
 
-        return '{} ({}, #{:03d}) | {}{}'.format(
+        return '{} | {}{}'.format(
+            self.printing_description,
+            self.condition,
+            '' if len(features) == 0 else ', {}'.format(', '.join((_.title() for _ in features))),
+        )
+
+    @property
+    def printing_description(self):
+        return '{} ({}, #{:03d})'.format(
             self.name,
             self.edition,
             self.card_number,
-            self.condition,
-            '' if len(features) == 0 else ', {}'.format(', '.join((_.title() for _ in features))),
         )
 
     @property
@@ -198,6 +206,10 @@ class Card(object):
     @property
     def is_misprint(self):
         return bool(self.misprint.strip())
+
+    @property
+    def ref(self):
+        return None if self.image_url is None else os.path.splitext(self.image_file_name)[0]
 
     def clone(self, count=None):
         new_clone = deepcopy(self)
