@@ -23,6 +23,15 @@ CONDITION_PRICE_MULTIPLIERS = {
 }
 
 
+class Face(object):
+
+    def __init__(self, card, name, card_type, cost):
+        self.card = card
+        self.name = None if name is None else name.strip()
+        self.card_type = None if card_type is None else card_type.strip()
+        self.cost = None if cost is None else cost.strip()
+
+
 class Card(object):
     _price = None
     _my_price = None
@@ -210,6 +219,39 @@ class Card(object):
     @property
     def ref(self):
         return None if self.image_url is None else os.path.splitext(self.image_file_name)[0]
+
+    @property
+    def multi_faced(self):
+        return '//' in self.name or '//' in self.card_type or '//' in self.cost
+
+    @property
+    def faces(self):
+        split_name = self.name.split('//')
+        split_card_type = self.card_type.split('//')
+        split_cost = self.cost.split('//')
+
+        for index in range(max((len(_) for _ in (split_name, split_card_type, split_cost)))):
+            try:
+                face_name = split_name[index]
+            except IndexError:
+                face_name = None
+
+            try:
+                face_card_type = split_card_type[index]
+            except IndexError:
+                face_card_type = None
+
+            try:
+                face_cost = split_cost[index]
+            except IndexError:
+                face_cost = None
+
+            yield Face(
+                card=self,
+                name=face_name,
+                card_type=face_card_type,
+                cost=face_cost,
+            )
 
     def clone(self, count=None):
         new_clone = deepcopy(self)
