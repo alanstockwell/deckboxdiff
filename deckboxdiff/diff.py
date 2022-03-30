@@ -25,6 +25,11 @@ CONDITION_PRICE_MULTIPLIERS = {
 
 
 class Face(object):
+    FLIP_EDITIONS = (
+        'Champions of Kamigawa',
+        'Betrayers of Kamigawa',
+        'Saviors of Kamigawa',
+    )
 
     def __init__(self, card, name, card_type, cost):
         self.card = card
@@ -47,11 +52,7 @@ class Face(object):
 
     @property
     def flipped(self):
-        return self.transformed and self.card.edition in (
-            'Champions of Kamigawa',
-            'Betrayers of Kamigawa',
-            'Saviors of Kamigawa',
-        )
+        return self.transformed and self.card.edition in self.FLIP_EDITIONS
 
 
 class Card(object):
@@ -245,6 +246,18 @@ class Card(object):
     @property
     def multi_faced(self):
         return '//' in self.name or '//' in self.card_type or '//' in self.cost
+
+    @property
+    def flips_or_transforms(self):
+        return self.multi_faced and '//' not in self.name
+
+    @property
+    def flips(self):
+        return self.flips_or_transforms and self.edition in Face.FLIP_EDITIONS
+
+    @property
+    def transforms(self):
+        return self.flips_or_transforms and self.edition not in Face.FLIP_EDITIONS
 
     @property
     def faces(self) -> Iterator[Face]:
