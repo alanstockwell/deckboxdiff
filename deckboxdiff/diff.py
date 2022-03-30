@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 
+from typing import Iterator
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -30,6 +31,27 @@ class Face(object):
         self.name = None if name is None else name.strip()
         self.card_type = None if card_type is None else card_type.strip()
         self.cost = None if cost is None else cost.strip()
+
+    def __str__(self):
+        return '{}{}'.format(
+            ' '.join(filter(lambda x: x is not None, (self.name, self.cost, self.card_type))),
+            ' (flipped)' if self.flipped else ' (transformed)' if self.transformed else '',
+        )
+
+    def __repr__(self):
+        return '<Face: {}>'.format(self)
+
+    @property
+    def transformed(self):
+        return self.name is None and self.cost is None
+
+    @property
+    def flipped(self):
+        return self.transformed and self.card.edition in (
+            'Champions of Kamigawa',
+            'Betrayers of Kamigawa',
+            'Saviors of Kamigawa',
+        )
 
 
 class Card(object):
@@ -79,7 +101,7 @@ class Card(object):
             card_number=row.loc['Card Number'],
             name=row.loc['Name'],
             card_type=row.loc['Type'],
-            cost=row.loc['Cost'],
+            cost='' if pd.isna(row.loc['Cost']) else row.loc['Cost'],
             rarity=row.loc['Rarity'],
             count=row.loc['Count'],
             condition='' if pd.isna(row.loc['Condition']) else row.loc['Condition'],
@@ -225,7 +247,7 @@ class Card(object):
         return '//' in self.name or '//' in self.card_type or '//' in self.cost
 
     @property
-    def faces(self):
+    def faces(self) -> Iterator[Face]:
         split_name = self.name.split('//')
         split_card_type = self.card_type.split('//')
         split_cost = self.cost.split('//')
@@ -239,7 +261,10 @@ class Card(object):
             try:
                 face_card_type = split_card_type[index]
             except IndexError:
-                face_card_type = None
+                if 'Token' in split_card_type[0]:
+                    face_card_type = 'Token'
+                else:
+                    face_card_type = None
 
             try:
                 face_cost = split_cost[index]
@@ -331,6 +356,10 @@ class CardSet(object):
             return self.cards[card.identity]
         except KeyError:
             return None
+
+    def iter(self) -> Iterator[Card]:
+        for card in self.cards.values():
+            yield card
 
     def iter_diff(self, other_card_set):
         for card in self.cards.values():
@@ -435,6 +464,15 @@ class DeckboxExport(object):
                     self.most_recent_update = max(self.most_recent_update, card.last_updated)
 
             self.card_set.add_card(card)
+
+    def __str__(self):
+        return os.path.basename(self.file_path)
+
+    def __repr__(self):
+        return '<DeckboxExport: {}>'.format(self)
+
+    def iter_cards(self) -> Iterator[Card]:
+        return self.card_set.iter()
 
 
 if __name__ == '__main__':
