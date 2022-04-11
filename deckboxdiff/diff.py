@@ -77,7 +77,7 @@ class Card(object):
         self.misprint = misprint
         self.promo = promo
         self.textless = textless
-        self.image_url = image_url
+        self.raw_image_url = image_url
 
         if isinstance(last_updated, str):
             self.last_updated = parse_datetime(last_updated)
@@ -290,6 +290,17 @@ class Card(object):
                 card_type=face_card_type,
                 cost=face_cost,
             )
+
+    @property
+    def image_url(self):
+        if self.raw_image_url is None:
+            return None
+        else:
+            return 'https://{}'.format(self.raw_image_url.split('https://')[-1])
+
+    @image_url.setter
+    def image_url(self, value):
+        self.raw_image_url = value
 
     def clone(self, count=None):
         new_clone = deepcopy(self)
